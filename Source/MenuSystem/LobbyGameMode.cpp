@@ -68,6 +68,5 @@ void ALobbyGameMode::Logout(AController* Exiting)
 				FString::Printf(TEXT("%s has left the game!"), *PlayerName)
 			);
 		}
-}
-
+	}
 }

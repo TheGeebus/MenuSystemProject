@@ -14,6 +14,7 @@
 #include "OnlineSubsystem.h"
 #include "OnlineSessionSettings.h"
 #include "Online/OnlineSessionNames.h"
+#include "MultiplayerSessions/Public/MultiplayerSessionsSubsystem.h"
 
 
 
@@ -22,11 +23,12 @@ DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 //////////////////////////////////////////////////////////////////////////
 // AMenuSystemCharacter
 
-AMenuSystemCharacter::AMenuSystemCharacter():
+AMenuSystemCharacter::AMenuSystemCharacter()/* :
 	CreateSessionCompleteDelegate(FOnCreateSessionCompleteDelegate::CreateUObject(this, &ThisClass::OnCreateSessionComplete)),
 	FindSessionsCompleteDelegate(FOnFindSessionsCompleteDelegate::CreateUObject(this, &ThisClass::OnFindSessionsComplete)),
 	JoinSessionCompleteDelegate(FOnJoinSessionCompleteDelegate::CreateUObject(this, &ThisClass::OnJoinSessionComplete)),
 	DestroySessionCompleteDelegate(FOnDestroySessionCompleteDelegate::CreateUObject(this, &ThisClass::OnDestroySessionComplete))
+	*/
 {
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
@@ -79,6 +81,8 @@ AMenuSystemCharacter::AMenuSystemCharacter():
 		}
 		*/
 	}
+
+
 }
 
 void AMenuSystemCharacter::BeginPlay()
@@ -89,23 +93,48 @@ void AMenuSystemCharacter::BeginPlay()
 
 void AMenuSystemCharacter::StartGameSession()
 {
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(
+			-1,
+			15.f,
+			FColor::Green,
+			FString("Pushed key to start session.")
+		);
+	}
+
+	UGameInstance* GameInstance = GetGameInstance();
+	if (GameInstance)
+	{
+		MultiplayerSessionsSubsystem = GameInstance->GetSubsystem<UMultiplayerSessionsSubsystem>();
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(
+				-1,
+				15.f,
+				FColor::Green,
+				FString("Tried to get susbsystem.")
+			);
+		}
+	}
+
 	// Called when pressing the 1 key
-	if (!OnlineSessionInterface.IsValid())
+	if (MultiplayerSessionsSubsystem)
 	{
-		return;
-	}
+		MultiplayerSessionsSubsystem->StartSession();
 
-	auto ExistingSession = OnlineSessionInterface->GetNamedSession(NAME_GameSession);
-	if (ExistingSession != NULL)
-	{
-		OnlineSessionInterface->DestroySession(NAME_GameSession, DestroySessionCompleteDelegate);
-		UE_LOG(LogTemp, Warning, TEXT("Session destroyed"));
-		return;
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(
+				-1,
+				15.f,
+				FColor::Green,
+				FString("Tried to start session.")
+			);
+		}
 	}
-
-	CreateGameSession();
 }
-
+/*
 void AMenuSystemCharacter::CreateGameSession()
 {	
 	OnlineSessionInterface->AddOnCreateSessionCompleteDelegate_Handle(CreateSessionCompleteDelegate);
@@ -257,7 +286,7 @@ void AMenuSystemCharacter::OnDestroySessionComplete(FName SessionName, bool bWas
 		CreateGameSession();
 	}
 }
-
+*/
 //////////////////////////////////////////////////////////////////////////
 // Input
 

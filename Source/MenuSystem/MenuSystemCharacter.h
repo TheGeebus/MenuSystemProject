@@ -17,6 +17,8 @@ class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
 
+class UMultiplayerSessionsSubsystem;
+
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
 UCLASS(config = Game)
@@ -83,6 +85,7 @@ protected:
 
 	UFUNCTION(BlueprintCallable)
 	void StartGameSession();
+	/*
 	void CreateGameSession();
 	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
 
@@ -92,14 +95,18 @@ protected:
 	void OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
 
 	void OnDestroySessionComplete(FName SessionName, bool bWasSuccessful);
-
+	*/
 private:
-
+	/*
 	FOnCreateSessionCompleteDelegate CreateSessionCompleteDelegate;
 	FOnFindSessionsCompleteDelegate FindSessionsCompleteDelegate;
 	FOnJoinSessionCompleteDelegate JoinSessionCompleteDelegate;
 	FOnDestroySessionCompleteDelegate DestroySessionCompleteDelegate;
-
+	
 	TSharedPtr<FOnlineSessionSearch> SessionSearch;
+	*/
+	// The subsystem designed to handle all online session functionality
+	TObjectPtr<UMultiplayerSessionsSubsystem> MultiplayerSessionsSubsystem;
+
 };
 

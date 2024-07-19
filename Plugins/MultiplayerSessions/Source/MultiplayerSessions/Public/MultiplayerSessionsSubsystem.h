@@ -62,7 +62,8 @@ protected:
 private:
 	IOnlineSessionPtr SessionInterface;
 	TSharedPtr<FOnlineSessionSettings> LastSessionSettings;
-	
+	TSharedPtr<FOnlineSessionSearch> LastSessionSearch;
+
 	/**
 	* Added to the Online Session Interface delegate list
 	* We'll bind our MultiplayerSessionsSubsystem internal callbacks to these 
@@ -78,5 +79,7 @@ private:
 	FOnStartSessionCompleteDelegate StartSessionCompleteDelegate;
 	FDelegateHandle StartSessionCompleteDelegateHandle;
 
-	TSharedPtr<FOnlineSessionSearch> LastSessionSearch;
+	bool bCreateSessionOnDestroy{ false };
+	int32 LastNumPublicConnections;
+	FString LastMatchType;
 };
