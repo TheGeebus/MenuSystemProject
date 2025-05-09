@@ -69,6 +69,7 @@ AMenuSystemCharacter::AMenuSystemCharacter()/* :
 	if (OnlineSubsytem)
 	{
 		OnlineSessionInterface = OnlineSubsytem->GetSessionInterface();
+		
 		/*
 		if (GEngine)
 		{

@@ -12,12 +12,19 @@ UMultiplayerSessionsSubsystem::UMultiplayerSessionsSubsystem():
 	FindSessionsCompleteDelegate(FOnFindSessionsCompleteDelegate::CreateUObject(this, &ThisClass::OnFindSessionsComplete)),
 	JoinSessionCompleteDelegate(FOnJoinSessionCompleteDelegate::CreateUObject(this, &ThisClass::OnJoinSessionComplete)),
 	DestroySessionCompleteDelegate(FOnDestroySessionCompleteDelegate::CreateUObject(this, &ThisClass::OnDestroySessionComplete)),
-	StartSessionCompleteDelegate(FOnStartSessionCompleteDelegate::CreateUObject(this, &ThisClass::OnStartSessionComplete))
+	StartSessionCompleteDelegate(FOnStartSessionCompleteDelegate::CreateUObject(this, &ThisClass::OnStartSessionComplete)),
+	ReadFriendsListCompleteDelegate(FOnReadFriendsListComplete::CreateUObject(this, &ThisClass::OnReadFriendsListComplete)),
+	SendInviteCompleteDelegate(FOnSendInviteComplete::CreateUObject(this, &ThisClass::OnSendInviteComplete)),
+	// AcceptInviteCompleteDelegate(FOnAcceptInviteComplete::CreateUObject(this, &ThisClass::OnAcceptInviteComplete)),
+	SessionUserInviteAcceptedDelegate(FOnSessionUserInviteAcceptedDelegate::CreateUObject(this, &ThisClass::OnSessionUserInviteAccepted)),
+	SessionInviteReceivedDelegate(FOnSessionInviteReceivedDelegate::CreateUObject(this, &ThisClass::OnSessionInviteReceived))
+
 {
 	IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get();
 	if (Subsystem)
 	{
 		SessionInterface = Subsystem->GetSessionInterface();
+		FriendsInterface = Subsystem->GetFriendsInterface();
 		/*
 		if (GEngine)
 		{
@@ -60,7 +67,7 @@ void UMultiplayerSessionsSubsystem::CreateSession(int32 NumPublicConnections, FS
 	LastSessionSettings->bUsesPresence = true;
 	LastSessionSettings->bUseLobbiesIfAvailable = true;
 	LastSessionSettings->Set(FName("MatchType"), MatchType, EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
-	LastSessionSettings->BuildUniqueId = 1;
+	LastSessionSettings->BuildUniqueId = 2144248158;
 
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
 	if (!SessionInterface->CreateSession(*LocalPlayer->GetPreferredUniqueNetId(), NAME_GameSession, *LastSessionSettings))
@@ -134,7 +141,6 @@ void UMultiplayerSessionsSubsystem::DestroySession()
 
 void UMultiplayerSessionsSubsystem::StartSession()
 {
-
 	if (!SessionInterface.IsValid())
 	{
 		MultiplayerOnStartSessionComplete.Broadcast(false);
@@ -160,6 +166,40 @@ void UMultiplayerSessionsSubsystem::StartSession()
 		);
 	}
 	*/
+}
+
+void UMultiplayerSessionsSubsystem::FindFriends()
+{
+	if (!FriendsInterface->ReadFriendsList(0, ToString(EFriendsLists::InGamePlayers), ReadFriendsListCompleteDelegate))
+	{
+		TArray<TSharedRef<FOnlineFriend>> Friends;
+		MultiplayerOnReadFriendsListComplete.ExecuteIfBound(false, Friends);
+	}
+}
+
+void UMultiplayerSessionsSubsystem::InviteFriend(const FUniqueNetIdRef& FriendNetID)
+{
+	if (!SessionInterface.IsValid())
+	{
+		return;
+	}
+	
+	SessionInviteReceivedDelegateHandle = SessionInterface->AddOnSessionInviteReceivedDelegate_Handle(SessionInviteReceivedDelegate);
+
+	if (!SessionInterface->SendSessionInviteToFriend(0, NAME_GameSession, FriendNetID.Get()))
+	{
+		SessionInterface->ClearOnSessionInviteReceivedDelegate_Handle(SessionInviteReceivedDelegateHandle);
+		return;
+	}
+}
+
+void UMultiplayerSessionsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	if (SessionInterface)
+	{
+		SessionUserInviteAcceptedDelegateHandle = SessionInterface->AddOnSessionUserInviteAcceptedDelegate_Handle(SessionUserInviteAcceptedDelegate);
+	}
 }
 
 void UMultiplayerSessionsSubsystem::OnCreateSessionsComplete(FName SessionName, bool bWasSuccessful)
@@ -233,3 +273,66 @@ void UMultiplayerSessionsSubsystem::OnStartSessionComplete(FName SessionName, bo
 	*/
 	MultiplayerOnStartSessionComplete.Broadcast(bWasSuccessful);
 }
+
+void UMultiplayerSessionsSubsystem::OnReadFriendsListComplete(int32 LocalUserNum, bool bWasSuccessful, const FString& ListName, const FString& ErrorStr)
+{
+	if (FriendsInterface)
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Blue, FString::Printf(TEXT("ListName: %s"), *ListName));
+		}
+		TArray<TSharedRef<FOnlineFriend>> FriendRefs;
+		FriendsInterface->GetFriendsList(LocalUserNum, ListName, FriendRefs);
+		if (FriendRefs.Num() > 0)
+		{
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Blue, FString::Printf(TEXT("Found number of friends: %d"), FriendRefs.Num()));
+			}
+		}
+
+		MultiplayerOnReadFriendsListComplete.ExecuteIfBound(bWasSuccessful, FriendRefs);
+	}
+}
+
+void UMultiplayerSessionsSubsystem::OnSessionInviteReceived(const FUniqueNetId& UserId, const FUniqueNetId& FromId, const FString& AppId, const FOnlineSessionSearchResult& InviteResult)
+{
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Green, TEXT("UMultiplayerSessionsSubsystem::OnSessionInviteReceived called!"));
+	}
+
+	MultiplayerOnSessionInviteReceived.Broadcast(true);
+}
+
+void UMultiplayerSessionsSubsystem::OnSendInviteComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& FriendId, const FString& ListName, const FString& ErrorStr)
+{
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Green, TEXT("UMultiplayerSessionsSubsystem::OnSendInviteComplete called!"));
+	}
+
+	MultiplayerOnSendInviteComplete.Broadcast(bWasSuccessful);
+}
+
+void UMultiplayerSessionsSubsystem::OnSessionUserInviteAccepted(const bool bWasSuccessful, const int32 ControllerID, FUniqueNetIdPtr UserID, const FOnlineSessionSearchResult& InviteResult)
+{
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Green, TEXT("Broadcasting MultiplayerOnSessionInviteComplete!"));
+	}
+
+	MultiplayerOnSessionInviteComplete.Broadcast(bWasSuccessful);
+
+	JoinSession(InviteResult);
+
+}
+
+
+/*
+void UMultiplayerSessionsSubsystem::OnAcceptInviteComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& FriendId, const FString& ListName, const FString& ErrorStr)
+{
+	FindSessions(10);
+}
+*/

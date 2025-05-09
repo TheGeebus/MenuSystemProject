@@ -3,6 +3,7 @@
 
 #include "Menu.h"
 #include "Components/Button.h"
+#include "Components/TextBlock.h"
 #include "MultiplayerSessionsSubsystem.h"
 #include "OnlineSessionSettings.h"
 // #include "Online/OnlineSessionNames.h"
@@ -17,18 +18,13 @@ void UMenu::MenuSetup(int32 NumberOfPublicConnections, FString TypeOfMatch, FStr
 	NumPublicConnections = NumberOfPublicConnections;
 	MatchType = TypeOfMatch;
 	AddToViewport();
-	SetVisibility(ESlateVisibility::Visible);
-	if (StartButton)
-	{
-		StartButton->SetVisibility(ESlateVisibility::Hidden);
-	}
 	SetIsFocusable(true);
 	UWorld* World = GetWorld();
 	if (World)
 	{
 		FString OutPath = World->GetCurrentLevel()->GetPathName();
 		FString Name = World->GetName();
-		/*
+		
 		if (GEngine)
 		{
 			GEngine->AddOnScreenDebugMessage(
@@ -37,6 +33,8 @@ void UMenu::MenuSetup(int32 NumberOfPublicConnections, FString TypeOfMatch, FStr
 				FColor::Yellow,
 				OutPath
 			);
+			
+			/*
 			GEngine->AddOnScreenDebugMessage(
 				-1,
 				15.f,
@@ -49,13 +47,21 @@ void UMenu::MenuSetup(int32 NumberOfPublicConnections, FString TypeOfMatch, FStr
 				FColor::Yellow,
 				LobbyPath
 			);
+			*/
 		}
-		*/
-		if (UKismetStringLibrary::FindSubstring(World->GetCurrentLevel()->GetPathName(), LobbyPath) == 0 && 
-			World->IsNetMode(ENetMode::NM_ListenServer) && 
-			StartButton)
+		
+		if (World->IsNetMode(ENetMode::NM_ListenServer) && 
+			UKismetStringLibrary::FindSubstring(World->GetCurrentLevel()->GetPathName(), LobbyPath) == 0)
 		{
-			StartButton->SetVisibility(ESlateVisibility::Visible);
+			if (StartButton)
+			{
+				StartButton->SetVisibility(ESlateVisibility::Visible);
+			}
+			if (FindFriendsButton)
+			{
+				FindFriendsButton->SetVisibility(ESlateVisibility::Visible);
+				FindFriendsButton->SetIsEnabled(true);
+			}
 		}
 		APlayerController* PlayerController = World->GetFirstPlayerController();
 		if (PlayerController)
@@ -90,6 +96,10 @@ void UMenu::MenuSetup(int32 NumberOfPublicConnections, FString TypeOfMatch, FStr
 		MultiplayerSessionsSubsystem->MultiplayerOnJoinSessionComplete.AddUObject(this, &ThisClass::OnJoinSession);
 		MultiplayerSessionsSubsystem->MultiplayerOnDestroySessionComplete.AddDynamic(this, &ThisClass::OnDestroySession);
 		MultiplayerSessionsSubsystem->MultiplayerOnStartSessionComplete.AddDynamic(this, &ThisClass::OnStartSession);
+		MultiplayerSessionsSubsystem->MultiplayerOnReadFriendsListComplete.BindUObject(this, &ThisClass::OnFindFriendsComplete);
+		MultiplayerSessionsSubsystem->MultiplayerOnSessionInviteComplete.AddDynamic(this, &ThisClass::OnSessionInviteComplete);
+		MultiplayerSessionsSubsystem->MultiplayerOnSendInviteComplete.AddDynamic(this, &ThisClass::OnSendInviteComplete);
+		MultiplayerSessionsSubsystem->MultiplayerOnSessionInviteReceived.AddDynamic(this, &ThisClass::OnSessionInviteReceived);
 	}
 }
 
@@ -117,6 +127,23 @@ bool UMenu::Initialize()
 	if (StartButton)
 	{
 		StartButton->OnClicked.AddDynamic(this, &UMenu::StartButtonClicked);
+		StartButton->SetVisibility(ESlateVisibility::Hidden);
+	}
+	if (QuitButton)
+	{
+		QuitButton->OnClicked.AddDynamic(this, &UMenu::QuitButtonClicked);
+	}
+	if (FindFriendsButton)
+	{
+		FindFriendsButton->OnClicked.AddDynamic(this, &UMenu::FindFriend);
+		FindFriendsButton->SetIsEnabled(false);
+		FindFriendsButton->SetVisibility(ESlateVisibility::Hidden);
+	}
+	if (InviteFriendButton)
+	{
+		InviteFriendButton->OnClicked.AddDynamic(this, &UMenu::InviteFriend);
+		InviteFriendButton->SetIsEnabled(false);
+		InviteFriendButton->SetVisibility(ESlateVisibility::Hidden);
 	}
 	
 	return true;
@@ -268,6 +295,82 @@ void UMenu::OnStartSession(bool bWasSuccessful)
 	}
 }
 
+void UMenu::OnFindFriendsComplete(bool bWasSuccessful, const TArray<TSharedRef<FOnlineFriend>>& Friends)
+{
+	if (bWasSuccessful)
+	{
+		InGameFriends.Empty();
+		if (Friends.Num() > 0)
+		{
+			InGameFriends = Friends;
+
+			for (TSharedRef<FOnlineFriend> Friend : InGameFriends)
+			{
+				if (GEngine)
+				{
+					GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Blue, FString::Printf(TEXT("%s"), *Friend->GetDisplayName()));
+				}
+			}
+			if (InviteFriendButton)
+			{
+				InviteFriendButton->SetVisibility(ESlateVisibility::Visible);
+				InviteFriendButton->SetIsEnabled(true);
+				InviteText->SetText(FText::FromString(FString::Printf(TEXT("Invite %s"), *InGameFriends[0]->GetDisplayName())));
+			}
+		}
+		else if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red, TEXT("FOUND NO FRIENDS!!!"));
+		}
+	}
+	else if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red, TEXT("FindFriends Failed!!!"));
+	}
+	FindFriendsButton->SetIsEnabled(true);
+}
+
+void UMenu::OnSessionInviteComplete(bool bWasSuccessful)
+{
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Green, TEXT("SessionInviteComplete finished!"));
+	}
+	if (InviteFriendButton)
+	{
+		InviteFriendButton->SetIsEnabled(true);
+		InviteFriendButton->SetVisibility(ESlateVisibility::Visible);
+	}
+}
+
+
+void UMenu::OnSendInviteComplete(bool bWasSuccessful)
+{
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Green, TEXT("OnSendInviteComplete finished!"));
+	}
+	if (InviteFriendButton)
+	{
+		InviteFriendButton->SetIsEnabled(true);
+		InviteFriendButton->SetVisibility(ESlateVisibility::Visible);
+	}
+}
+
+void UMenu::OnSessionInviteReceived(bool bWasSuccessful)
+{
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Green, TEXT("OnSessionInviteReceived finished!"));
+	}
+	if (InviteFriendButton)
+	{
+		InviteFriendButton->SetIsEnabled(true);
+		InviteFriendButton->SetVisibility(ESlateVisibility::Visible);
+	}
+}
+
+
 void UMenu::HostButtonClicked()
 {
 	HostButton->SetIsEnabled(false);
@@ -283,7 +386,7 @@ void UMenu::JoinButtonClicked()
 	JoinButton->SetIsEnabled(false);
 	if (MultiplayerSessionsSubsystem)
 	{
-		MultiplayerSessionsSubsystem->FindSessions(20000);
+		MultiplayerSessionsSubsystem->FindSessions(10000);
 	}
 }
 
@@ -293,6 +396,42 @@ void UMenu::StartButtonClicked()
 	if (MultiplayerSessionsSubsystem)
 	{
 		MultiplayerSessionsSubsystem->StartSession();
+	}
+}
+
+void UMenu::QuitButtonClicked()
+{
+	QuitButton->SetIsEnabled(false);
+
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		APlayerController* PlayerController = World->GetFirstPlayerController();
+		if (PlayerController)
+		{
+			PlayerController->ConsoleCommand("quit");
+		}
+	}
+}
+
+void UMenu::FindFriend()
+{
+	FindFriendsButton->SetIsEnabled(false);
+	if (MultiplayerSessionsSubsystem)
+	{
+		MultiplayerSessionsSubsystem->FindFriends();
+	}
+}
+
+void UMenu::InviteFriend()
+{
+	InviteFriendButton->SetIsEnabled(false);
+	if (MultiplayerSessionsSubsystem)
+	{
+		if (InGameFriends.Num() > 0)
+		{
+			MultiplayerSessionsSubsystem->InviteFriend(InGameFriends[0]->GetUserId());
+		}
 	}
 }
 

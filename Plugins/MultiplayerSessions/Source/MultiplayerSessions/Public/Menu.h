@@ -9,7 +9,10 @@
 #include "Menu.generated.h"
 
 class UButton;
+class UTextBlock;
 class UMultiplayerSessionsSubsystem;
+
+
 
 /**
  * 
@@ -43,6 +46,10 @@ protected:
 	void OnDestroySession(bool bWasSuccessful);
 	UFUNCTION()
 	void OnStartSession(bool bWasSuccessful);
+	void OnFindFriendsComplete(bool bWasSuccessful, const TArray<TSharedRef<FOnlineFriend>>& Friends);
+	void OnSessionInviteComplete(bool bWasSuccessful);
+	void OnSendInviteComplete(bool bWasSuccessful);
+	void OnSessionInviteReceived(bool bWasSuccessful);
 
 private:
 
@@ -58,6 +65,17 @@ private:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> QuitButton;
 
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> FindFriendsButton;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> InviteFriendButton;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UTextBlock> InviteText;
+
+	TArray<TSharedRef<FOnlineFriend>> InGameFriends;
+
 	UFUNCTION()
 	void HostButtonClicked();
 	
@@ -66,6 +84,15 @@ private:
 	
 	UFUNCTION()
 	void StartButtonClicked();
+
+	UFUNCTION()
+	void QuitButtonClicked();
+
+	UFUNCTION()
+	void FindFriend();
+
+	UFUNCTION()
+	void InviteFriend();
 	
 	void MenuTeardown();
 
